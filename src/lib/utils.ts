@@ -2,14 +2,17 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { toast } from "sonner";
 
+// Utility để gộp class Tailwind một cách an toàn
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// Chuyển enum dạng PascalCase thành chuỗi có dấu cách
 export function formatEnumString(str: string) {
   return str.replace(/([A-Z])/g, " $1").trim();
 }
 
+// Định dạng giá theo kiểu Min/Max Price
 export function formatPriceValue(value: number | null, isMin: boolean) {
   if (value === null || value === 0)
     return isMin ? "Any Min Price" : "Any Max Price";
@@ -20,7 +23,7 @@ export function formatPriceValue(value: number | null, isMin: boolean) {
   return isMin ? `$${value}+` : `<$${value}`;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// Dọn dẹp params khỏi undefined, null, "any", hoặc mảng rỗng/null
 export function cleanParams(params: Record<string, any>): Record<string, any> {
   return Object.fromEntries(
     Object.entries(params).filter(
@@ -40,6 +43,7 @@ type MutationMessages = {
   error: string;
 };
 
+// Thực thi promise mutation và toast kết quả
 export const withToast = async <T>(
   mutationFn: Promise<T>,
   messages: Partial<MutationMessages>
@@ -56,28 +60,40 @@ export const withToast = async <T>(
   }
 };
 
+// Hàm tạo mới user trong DB (nếu chưa tồn tại)
 export const createNewUserInDatabase = async (
   user: any,
+  idToken: any,
   userRole: string,
   fetchWithBQ: any
 ) => {
   const createEndpoint =
     userRole?.toLowerCase() === "manager" ? "/managers" : "/tenants";
 
+  const body = {
+    cognitoId: user.userId,
+    name: user.username,
+    email: idToken?.payload?.email || "",
+    phoneNumber: "",
+  };
+
+  // Ghi log để kiểm tra request
+  console.log("[createNewUserInDatabase] Sending to:", createEndpoint);
+  console.log("[createNewUserInDatabase] Body:", body);
+
   const createUserResponse = await fetchWithBQ({
     url: createEndpoint,
     method: "POST",
-    body: {
-      cognitoId: user.userId,
-      name: user.username,
-      email: user.signInDetails?.loginId || "",
-      phoneNumber: "",
-    },
+    body,
   });
 
+  // Ghi log response
   if (createUserResponse.error) {
+    console.error("[createNewUserInDatabase] Error:", createUserResponse.error);
     throw new Error("Failed to create user record");
   }
+
+  console.log("[createNewUserInDatabase] Success:", createUserResponse.data);
 
   return createUserResponse;
 };

@@ -9,36 +9,32 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.createManager = exports.getManager = void 0;
+exports.getManagerProperties = exports.updateManager = exports.createManager = exports.getManager = void 0;
 const client_1 = require("@prisma/client");
+const wkt_1 = require("@terraformer/wkt");
 const prisma = new client_1.PrismaClient();
 const getManager = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { cognitoId } = req.params;
-        console.log("GET /managers/:cognitoId");
-        console.log("Received cognitoId:", cognitoId);
         const manager = yield prisma.manager.findUnique({
             where: { cognitoId },
         });
         if (manager) {
-            console.log("Manager found:", manager);
             res.json(manager);
         }
         else {
-            console.log("Manager not found");
             res.status(404).json({ message: "Manager not found" });
         }
     }
     catch (error) {
-        console.error("Error in getManager:", error.message);
-        res.status(500).json({ message: `Internal Server Error, ${error.message}` });
+        res
+            .status(500)
+            .json({ message: `Error retrieving manager: ${error.message}` });
     }
 });
 exports.getManager = getManager;
 const createManager = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        console.log("POST /managers");
-        console.log("Request body:", req.body);
         const { cognitoId, name, email, phoneNumber } = req.body;
         const manager = yield prisma.manager.create({
             data: {
@@ -48,12 +44,62 @@ const createManager = (req, res) => __awaiter(void 0, void 0, void 0, function* 
                 phoneNumber,
             },
         });
-        console.log("Manager created:", manager);
         res.status(201).json(manager);
     }
     catch (error) {
-        console.error("Error in createManager:", error.message);
-        res.status(500).json({ message: `Error creating manager, ${error.message}` });
+        res
+            .status(500)
+            .json({ message: `Error creating manager: ${error.message}` });
     }
 });
 exports.createManager = createManager;
+const updateManager = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { cognitoId } = req.params;
+        const { name, email, phoneNumber } = req.body;
+        const updateManager = yield prisma.manager.update({
+            where: { cognitoId },
+            data: {
+                name,
+                email,
+                phoneNumber,
+            },
+        });
+        res.json(updateManager);
+    }
+    catch (error) {
+        res
+            .status(500)
+            .json({ message: `Error updating manager: ${error.message}` });
+    }
+});
+exports.updateManager = updateManager;
+const getManagerProperties = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { cognitoId } = req.params;
+        const properties = yield prisma.property.findMany({
+            where: { managerCognitoId: cognitoId },
+            include: {
+                location: true,
+            },
+        });
+        const propertiesWithFormattedLocation = yield Promise.all(properties.map((property) => __awaiter(void 0, void 0, void 0, function* () {
+            var _a;
+            const coordinates = yield prisma.$queryRaw `SELECT ST_asText(coordinates) as coordinates from "Location" where id = ${property.location.id}`;
+            const geoJSON = (0, wkt_1.wktToGeoJSON)(((_a = coordinates[0]) === null || _a === void 0 ? void 0 : _a.coordinates) || "");
+            const longitude = geoJSON.coordinates[0];
+            const latitude = geoJSON.coordinates[1];
+            return Object.assign(Object.assign({}, property), { location: Object.assign(Object.assign({}, property.location), { coordinates: {
+                        longitude,
+                        latitude,
+                    } }) });
+        })));
+        res.json(propertiesWithFormattedLocation);
+    }
+    catch (err) {
+        res
+            .status(500)
+            .json({ message: `Error retrieving manager properties: ${err.message}` });
+    }
+});
+exports.getManagerProperties = getManagerProperties;
